@@ -1,0 +1,7 @@
+base   doodle2
+author Robert Rackl
+email  dokuwiki@doogie.de
+date   2011-01-01
+name   Doodle Plugin V2.0
+desc   Let users vote for given choices, e.g. to schedule a meeting. 
+url    http://www.dokuwiki.org/plugin:doodle2
