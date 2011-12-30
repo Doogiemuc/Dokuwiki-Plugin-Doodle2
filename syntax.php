@@ -93,6 +93,7 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
             'title'          => 'Default title',
             'auth'           => self::AUTH_NONE,
             'adminGroup'     => '',
+			'adminMail'      => '',
             'allowMultiVote' => FALSE,
             'closed'         => FALSE
         );
@@ -116,16 +117,25 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
                }
             } else
             if (strcmp($name, "ADMINUSERS") == 0) {
-                $params['adminUsers'] = $value;
+                $params['adminUsers'] = strtoupper($value);
             } else
             if (strcmp($name, "ADMINGROUPS") == 0) {
                 $params['adminGroups'] = $value;
             } else 
+            if (strcmp($name, "ADMINMAIL") == 0) {
+                // check for valid email adress
+                if (preg_match('/^[_a-z0-9-]+(\.[_a-z0-9-]+)*@[a-z0-9-]+(\.[a-z0-9-]+)*(\.[a-z]{2,5})$/', $value)) {
+                    $params['adminMail'] = $value;
+				}
+			} else
             if (strcmp($name, "VOTETYPE") == 0) {
                 $params['allowMultiVote'] = strcasecmp($value, "multi") == 0;
             } else
-            if (strcmp($name, "AUTOGROUP") == 0) {
-                $params['autoGroup'] = $value;
+			if ((strcmp($name, "CLOSEON") == 0) &&
+                (($timestamp = strtotime($value)) !== false) &&
+                (time() > $timestamp) )
+            {
+                $params['closed'] = 1;
             } else
             if (strcmp($name, "CLOSED") == 0) {
                 $params['closed'] = strcasecmp($value, "TRUE") == 0;
@@ -368,6 +378,14 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
         $this->doodle["$fullname"]['ip']      = $_SERVER['REMOTE_ADDR'];
         $this->writeDoodleDataToFile();
         $this->template['msg'] = $this->getLang('vote_saved');
+
+        //send mail if $params['adminMail'] is filled
+        if ($this->params['adminMail']) {
+            $subj = '[DoodlePlugin] Vote casted by "'.$this->doodle["$fullname"]['username']
+				.'" ('.$fullname.')';
+            $body = 'User has casted a vote'."\n\n".print_r($this->doodle["$fullname"], true);
+            mail_send($this->params['adminMail'], $subj, $body, $conf['mailfrom']);
+        }
     }
     
     /** ACTION: start editing an entry */
@@ -437,7 +455,7 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
         //check adminUsers
 		if (!empty($this->params['adminUsers'])) {
 			$adminUsers = explode('|', $this->params['adminUsers']); // array of adminUsers
-            if(in_array($_SERVER['REMOTE_USER'], $adminUsers))
+            if(in_array(strtoupper($_SERVER['REMOTE_USER']), $adminUsers))
                 return true;
         }
         
