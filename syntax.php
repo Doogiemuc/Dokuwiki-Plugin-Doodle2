@@ -49,7 +49,7 @@ require_once(DOKU_PLUGIN.'syntax.php');
  * The doodle's data is saved in '<dokuwiki>/data/meta/title_of_vote.doodle'. The filename is the (masked) title. 
  * This has the advantage that you can move your doodle to another page, without loosing the data.
  */
-class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin 
+class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin 
 {
     const AUTH_NONE = 0;
     const AUTH_IP   = 1;
@@ -58,7 +58,7 @@ class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin
     /**
      * return info about this plugin
      */
-    function getInfo(){
+    function getInfo() {
         return array(
             'author' => 'Robert Rackl',
             'email'  => 'wiki@doogie.de',
@@ -76,8 +76,8 @@ class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin
     /**
      * Connect pattern to lexer
      */
-    function connectTo($mode){
-        $this->Lexer->addSpecialPattern('<doodle\b.*?>.+?</doodle>', $mode, 'plugin_doodle');
+    function connectTo($mode) {
+        $this->Lexer->addSpecialPattern('<doodle\b.*?>.+?</doodle>', $mode, 'plugin_doodle2');
     }
 
     /**
@@ -90,11 +90,12 @@ class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin
 
         //----- default parameter settings
         $params = array(
-            'title'      => 'Default title',
-            'auth'       => self::AUTH_NONE,
-            'adminGroup' => '',
-            'voteTyp'    => 'single',
-            'closed'     => FALSE
+            'title'          => 'Default title',
+            'auth'           => self::AUTH_NONE,
+            'adminGroup'     => '',
+			'adminMail'      => '',
+            'allowMultiVote' => FALSE,
+            'closed'         => FALSE
         );
 
         //----- parse parameteres into name="value" pairs  
@@ -116,23 +117,23 @@ class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin
                }
             } else
             if (strcmp($name, "ADMINUSERS") == 0) {
-                $params['adminUsers'] = $value;
+                $params['adminUsers'] = strtoupper($value);
             } else
             if (strcmp($name, "ADMINGROUPS") == 0) {
                 $params['adminGroups'] = $value;
-            } else
+            } else 
             if (strcmp($name, "ADMINMAIL") == 0) {
                 // check for valid email adress
                 if (preg_match('/^[_a-z0-9-]+(\.[_a-z0-9-]+)*@[a-z0-9-]+(\.[a-z0-9-]+)*(\.[a-z]{2,5})$/', $value)) {
                     $params['adminMail'] = $value;
-                }
-            } else 
+				}
+			} else
             if (strcmp($name, "VOTETYPE") == 0) {
                 $params['allowMultiVote'] = strcasecmp($value, "multi") == 0;
             } else
-            if ((strcmp($name, "CLOSEON") == 0) &&
+			if ((strcmp($name, "CLOSEON") == 0) &&
                 (($timestamp = strtotime($value)) !== false) &&
-                (time() > $timestamp)   ) 
+                (time() > $timestamp) )
             {
                 $params['closed'] = 1;
             } else
@@ -187,14 +188,8 @@ class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin
         if ($mode != 'xhtml') return false;
         
         //debout("render: $mode");        
-        global $lang;
-        global $auth;
         global $conf; 
-        global $INFO; // needed for users real name
         global $ACT;  // action from $_REQUEST['do']
-        global $ID;   // name of current page
-
-        //debout('data in render', $data);
 
         $this->params    = $data['params'];
         $this->choices   = $data['choices'];
@@ -219,7 +214,7 @@ class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin
             } else        
             // ---- start editing an entry
             if (!empty($_REQUEST['edit__entry']) ) {
-                $this->startEditEntry();
+                $this->startEditEntry($_REQUEST['edit__entry']);
             } else
             // ---- save changed entry
             if (!empty($_REQUEST['change__vote']) ) {
@@ -227,7 +222,7 @@ class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin
             } else
             // ---- delete an entry completely
             if (!empty($_REQUEST['delete__entry']) ) {
-                $this->deleteEntry();
+                $this->deleteEntry($_REQUEST['delete__entry']);
             }
         }
         
@@ -292,19 +287,15 @@ class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin
             {
                 // the javascript source of these functions is in script.js
                 $this->template['doodleData']["$fullname"]['editLinks'] = 
-                   '<a href="javascript:editEntry(\''.$formId.'\',\''.$fullname.'\')">'.
-                   '  <img src="'.DOKU_BASE.'lib/images/pencil.png" alt="edit entry" style="float:left">'.
-                   '</a>'.
-                   '<a href="javascript:deleteEntry(\''.$formId.'\',\''.$fullname.'\')">'.
-                   '  <img src="'.DOKU_BASE.'lib/images/del.png" alt="delete entry" style="float:left">'.
-                   '</a>';
+					'<input type="submit" class="doodle__edit" value="'.$fullname.'" name="edit__entry" />'."\n".
+					'<input type="submit" class="doodle__delete" value="'.$fullname.'" name="delete__entry" />'."\n";
             }
         }
 
         // ---- calculates if user is allowed to vote
         $this->template['inputTR'] = $this->getInputTR();
         
-        // ----- I am using PHP as a templating enginge here.
+        // ----- I am using PHP as a templating engine here.
         //debout("Template", $this->template);
         ob_start();
         include 'doodle_template.php';  // the array $template can be used inside doodle_template.php!
@@ -320,49 +311,66 @@ class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin
      * (If user is allowed to.)
      */
     function castVote() {
-        $fullname          = hsc(trim($_REQUEST['fullname'])); 
-        $selected_indexes  = $_REQUEST['selected_indexes'];  // may not be set when all checkboxes are deseleted.
-        if (empty($selected_indexes)) {
+        $fullname     = hsc(trim($_REQUEST['fullname']));
+		if($this->params['auth'] === self::AUTH_IP) {
+			$fullname = $_SERVER['REMOTE_ADDR'];
+			if(empty($fullname)) {
+				$this->template['msg'] = $this->getLang('must_be_logged_in');
+				return;
+			}
+		}
+		elseif($this->params['auth'] === self::AUTH_USER) {
+			$fullname = hsc($_SERVER['REMOTE_USER']);
+			if(empty($fullname)) {
+				$this->template['msg'] = $this->getLang('must_be_logged_in');
+				return;
+			}
+		}
+		elseif(empty($fullname)) {
+			$this->template['msg'] = $this->getLang('dont_have_name');
+			return;
+		}
+
+        $selected_indexes = $_REQUEST['selected_indexes'];  // may not be set when all checkboxes are deseleted.
+        if (empty($selected_indexes) || !is_array($selected_indexes)) {
           $selected_indexes = array();
         }
         
-        if (empty($fullname)) {
-            return;
-        }
+		//check security token (prevent CSRF)
+		if(!checkSecurityToken())
+			return;
+
         //---- check if user is allowed to vote, according to 'auth' parameter
         
         //if AUTH_USER, then user must be logged in
-        if ($this->params['auth'] == self::AUTH_USER  && !$this->isLoggedIn()) {
+        if ($this->params['auth'] == self::AUTH_USER && !$this->isLoggedIn()) {
             $this->template['msg'] = $this->getLang('must_be_logged_in');
             return;
         }
-        
-        //if AUTH_IP, then prevent duplicate votes by IP.
-        //Exception: If user is logged in he is always allowed to change the vote with his fullname, even if he is on another IP.
-        if ($this->params['auth'] == self::AUTH_IP && !$this->isLoggedIn() && !isset($_REQUEST['change__vote']) ) {
-            foreach($this->doodle as $existintFullname => $userData) {
-              if (strcmp($userData['ip'], $_SERVER['REMOTE_ADDR']) == 0) {
-                $this->template['msg'] = sprintf($this->getLang('ip_has_already_voted'), $_SERVER['REMOTE_ADDR']);
-                return;
-              }
-            }
-        }
-
-        //do not vote twice, unless change__vote is set
+		
+        //do not vote twice, unless change__vote is set (also handle IP duplication)
         if (isset($this->doodle["$fullname"]) && !isset($_REQUEST['change__vote']) ) {
             $this->template['msg'] = $this->getLang('you_voted_already');
             return;
         }
         
-        //check if change__vote is allowed
+		//check if change__vote is allowed
+		$editName = hsc(trim($_REQUEST['fullname']));
         if (!empty($_REQUEST['change__vote']) &&
-            !$this->isAllowedToEditEntry($fullname)) 
+            !$this->isAllowedToEditEntry($editName))
         {
             $this->template['msg'] = $this->getLang('not_allowed_to_change');
             return;
         }
+		elseif(!empty($_REQUEST['change__vote']))
+			$fullname = $editName;
 
-        if (!empty($_SERVER['REMOTE_USER'])) {
+		//check there's only one value when vote type is not multi
+		if(!$this->params['allowMultiVote'] && count($selected_indexes) > 1) {
+		  $selected_indexes = array($selected_indexes[0]);
+		}
+
+        if (!empty($_SERVER['REMOTE_USER']) && empty($_REQUEST['change__vote'])) {
           $this->doodle["$fullname"]['username'] = $_SERVER['REMOTE_USER'];
         }
         $this->doodle["$fullname"]['choices'] = $selected_indexes;
@@ -370,35 +378,55 @@ class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin
         $this->doodle["$fullname"]['ip']      = $_SERVER['REMOTE_ADDR'];
         $this->writeDoodleDataToFile();
         $this->template['msg'] = $this->getLang('vote_saved');
-        
-        //send mail if  $params['adminMail'] is filled
+
+        //send mail if $params['adminMail'] is filled
         if ($this->params['adminMail']) {
-            $subj = '[DoodlePlugin] Vote casted by '.$this->doodle["$fullname"]['username'];
+            $subj = '[DoodlePlugin] Vote casted by "'.$this->doodle["$fullname"]['username']
+				.'" ('.$fullname.')';
             $body = 'User has casted a vote'."\n\n".print_r($this->doodle["$fullname"], true);
             mail_send($this->params['adminMail'], $subj, $body, $conf['mailfrom']);
         }
     }
     
     /** ACTION: start editing an entry */
-    function startEditEntry() {
-        $fullname = hsc(trim($_REQUEST['edit__entry']));
+	function startEditEntry($entryName) {
+		if($this->params['auth'] === self::AUTH_NONE) {
+			$this->template['msg'] = $this->getLang('not_allowed_to_change');
+			return;
+		}
+
+		$fullname = '';
+		if($this->params['auth'] === self::AUTH_IP)
+			$fullname = $_SERVER['REMOTE_ADDR'];
+		elseif($this->params['auth'] === self::AUTH_USER)
+			$fullname = hsc($_SERVER['REMOTE_USER']);
+
         if (empty($fullname) || 
-            !isset($this->doodle["$fullname"]) ||
-            !$this->isAllowedToEditEntry($fullname)  )   return;
+			!isset($this->doodle["$fullname"]) ||
+			!$this->isAllowedToEditEntry($entryName) ) {
+				return;
+		}
             
-        $this->template['editEntry']['fullname']       = $fullname;
-        $this->template['editEntry']['selected_indexes'] = $this->doodle["$fullname"]['choices'];
-        // $fullname will be shown in the input row
+        $this->template['editEntry']['fullname']         = hsc(trim($entryName));
+        $this->template['editEntry']['selected_indexes'] = $this->doodle["$entryName"]['choices'];
+        // $entryName will be shown in the input row
     }
 
     /** ACTION: delete an entry completely */
-    function deleteEntry() {
-        $fullname = hsc(trim($_REQUEST['delete__entry']));
+    function deleteEntry($entryName) {
+        $fullname = '';
+        if($this->params['auth'] === self::AUTH_IP)
+            $fullname = $_SERVER['REMOTE_ADDR'];
+        elseif($this->params['auth'] === self::AUTH_USER)
+            $fullname = hsc($_SERVER['REMOTE_USER']);
+
         if (empty($fullname) ||
             !isset($this->doodle["$fullname"]) ||
-            !$this->isAllowedToEditEntry($fullname)  )   return;
+            !$this->isAllowedToEditEntry($entryName) ) {
+				return;
+		}
 
-        unset($this->doodle["$fullname"]);
+        unset($this->doodle["$entryName"]);
         $this->writeDoodleDataToFile();
         $this->template['msg'] = $this->getLang('vote_deleted');
     }
@@ -411,35 +439,50 @@ class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin
      */
     function isAllowedToEditEntry($entryFullname) {
         global $INFO;
-        global $auth;
         
         if ($this->params['closed']) return false;
-        if (!$this->isLoggedIn()) return false;
+		if (!($this->isLoggedIn() || $this->params['auth'] === self::AUTH_IP))
+		                             return false;
 
         //check adminGroups
         if (!empty($this->params['adminGroups'])) {
             $adminGroups = explode('|', $this->params['adminGroups']); // array of adminGroups
             $usersGroups = $INFO['userinfo']['grps'];  // array of groups that the user is in
-            if (count(array_intersect($adminGroups, $usersGroups)) > 0) return true;
+			if (count(array_intersect($adminGroups, $usersGroups)) > 0)
+				return true;
         }
         
         //check adminUsers
-        if (!empty($this->params['adminUsers']) &&
-            stripos($this->params['adminUsers'], $_SERVER['REMOTE_USER']) !== false) {
+		if (!empty($this->params['adminUsers'])) {
+			$adminUsers = explode('|', $this->params['adminUsers']); // array of adminUsers
+            if(in_array(strtoupper($_SERVER['REMOTE_USER']), $adminUsers))
                 return true;
         }
         
         //check own entry
-        return strcasecmp(hsc($INFO['userinfo']['name']), $entryFullname) == 0;  // compare real name
+		switch($this->params['auth'])
+		{
+			case self::AUTH_NONE:
+				// If user is not an admin, then the doodle cannot be changed
+				return false;
+			case self::AUTH_IP:
+				// The entry must be the one of the user IP address
+				return ($_SERVER['REMOTE_ADDR'] === $entryFullname);
+			case self::AUTH_USER:
+				// The entry must be the one of the user name
+				return ($INFO['userinfo']['name'] === $entryFullname);
+			default:
+				// By default, nothing is editable
+				return false;
+		}
     }
     
     /** 
      * return true if the user is currently logged in
      */
     function isLoggedIn() {
-        global $conf;
-        global $auth;
-        return $conf['useacl'] && $auth && $_SERVER['REMOTE_USER'];
+		global $INFO;
+		return isset($INFO['userinfo']); // see http://www.dokuwiki.org/devel:environment
     }
     
     /**
@@ -457,29 +500,39 @@ class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin
         if ($ACT != 'show') return '';
         if ($this->params['closed']) return '';
         
-        $fullname = '';
-        $editMode = false;
+        $fullname  = '';
+		$entryName = '';
+        $editMode  = false;
         if ($this->isLoggedIn()) {
             $fullname = $INFO['userinfo']['name']; 
             if (isset($this->template['editEntry'])) {
-                $fullname = $this->template['editEntry']['fullname'];
+                $entryName = $this->template['editEntry']['fullname'];
                 $editMode = true;
-            } else {
-                if (isset($this->doodle["$fullname"]) ) return '';
-            }
+			} elseif ($this->params['auth'] === self::AUTH_USER &&
+				      isset($this->doodle["$fullname"]))
+				return '';
         } else {
-            if ($this->params['auth'] == self::AUTH_USER) return '';
+			if ($this->params['auth'] === self::AUTH_USER)
+				return '';
         }
+
+		if ($this->params['auth'] === self::AUTH_IP) {
+			$fullname = $_SERVER['REMOTE_ADDR'];
+			if (isset($this->template['editEntry'])) {
+				$entryName = $this->template['editEntry']['fullname'];
+				$editMode = true;
+			} elseif(isset($this->doodle["$fullname"]))
+				return '';
+		}
 
         // build html for tr
         $c = count($this->choices);
         $TR  = '';
-        //$TR .= '<tr style="height:3px"><th colspan="'.($c+1).'"></th></tr>';
         $TR .= '<tr>';
         $TR .= '<td class="rightalign">';
-        if ($fullname) {
+        if ($fullname && $this->params['auth'] !== self::AUTH_NONE) {
             if ($editMode) $TR .= $this->getLang('edit').':&nbsp;';
-            $TR .= hsc($fullname).'<input type="hidden" name="fullname" value="'.$fullname.'">';
+            $TR .= hsc($entryName).'<input type="hidden" name="fullname" value="'.$entryName.'">';
         } else {
             $TR .= '<input type="text" name="fullname" value="">';
         }
@@ -539,7 +592,7 @@ class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin
      * serialize the doodles data to a file
      */
     function writeDoodleDataToFile() {
-        if (!is_array($this->doodle)) return;
+        if (!is_array($this->doodle)) return FALSE;
         $dfile = $this->getDoodleFileName();
         ksort($this->doodle, SORT_LOCALE_STRING);   // sort by localized fullnames
         io_saveFile($dfile, serialize($this->doodle));

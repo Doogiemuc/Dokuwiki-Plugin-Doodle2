@@ -7,6 +7,7 @@ $lang['final_result']     = 'Ergebnis:';
 $lang['edit']             = '&auml;ndern';
 
 // error messages
+$lang['dont_have_name']        = 'Du vergisst dir Name!';
 $lang['must_be_logged_in']     = 'Du must eingeloggt sein um abstimmen zu d&uuml;rfen!';
 $lang['ip_has_already_voted']  = 'Diese IP (<code>%s</code>) hat bereits abgestimmt!';
 $lang['you_voted_already']     = 'Du hast bereits abgestimmt!';
