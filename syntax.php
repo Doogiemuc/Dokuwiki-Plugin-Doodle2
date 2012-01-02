@@ -134,7 +134,7 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
             } else
 			if ((strcmp($name, "CLOSEON") == 0) &&
                 (($timestamp = strtotime($value)) !== false) &&
-                (time() > $timestamp) )
+                (time() >= $timestamp) )
             {
                 $params['closed'] = 1;
             } else
@@ -191,7 +191,7 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
         //debout("render: $mode");        
         global $conf; 
         global $ACT;  // action from $_REQUEST['do']
-		global $REV;  // to not allow any action if it's an old page
+        global $REV;  // to not allow any action if it's an old page
 
         $this->params    = $data['params'];
         $this->choices   = $data['choices'];
@@ -231,7 +231,6 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
 				$this->closeVote();
 			}
         }
-
         
         /******** Format of the $doodle array ***********
          * The $doodle array maps fullnames (with html special characters masked) to an array of userData for this vote.
@@ -289,7 +288,7 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
         
         // ---- add edit link to editable entries
         foreach($this->doodle as $fullname => $userData) {
-            if ($ACT == 'show' &&
+            if ($ACT == 'show' && $REV === '' &&
                 $this->isAllowedToEditEntry($fullname)) 
             {
                 $this->template['doodleData']["$fullname"]['editLinks'] = 
@@ -595,15 +594,20 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
 		$ok = false;
 
 		//check for title/id in case of multiple doodle on the page
+		$cpt = 0;
 		if(preg_match_all('/<doodle.*title="(.*)".*>/Us', $file_content, $out, PREG_PATTERN_ORDER))
 		{
 			foreach($out[1] as $title)
 			{
 				//once we found the title, add a "closeon" attribute to the vote
-				if($_REQUEST['formId'] === 'doodle__form__'.cleanID($title))
+				if($this->params['title'] === hsc(trim($title)))
 				{
 					//escape all backslashes
 					$title = preg_replace('#\\\#', '\\\\\\', $title);
+
+					//check if someone didn't already close the vote
+					if(preg_match('/closeon=/', $out[0][$cpt]) > 0)
+						return;
 
 					//add the closeon attribute with the date of right now
 					$new_file_content = preg_replace(
@@ -615,9 +619,7 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
 					$closed = $this->getLang('vote_closed');
 
 					//remove the cache for this page for the handle() function to be call
-					//sleep(1); // a workaround proposed by Michitux in case something complain about the cache deletion
-					            // but the cache deletion doesn't make us waste time...
-					$cache = new cache_parser($ID, wikiFN($ID), 'xhtml');
+					$cache = new cache_instructions($ID, wikiFN($ID));
 					$cache->removeCache();
 
 					//and save the page containing this new attribute
@@ -628,10 +630,13 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
 					//reindex the page
 					idx_addPage($ID);
 
+					//tell the user we have found and closed the vote
 					$this->template['msg'] = $closed;
 					$ok = true;
 					break;
 				}
+
+				$cpt++;
 			}
 
 			if(!$ok)
