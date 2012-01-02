@@ -16,6 +16,6 @@ $lang['vote_saved']            = 'Votre vote a &eacute;t&eacute; sauvegard&eacut
 $lang['vote_deleted']          = 'Votre vote a &eacute;t&eacute; supprim&eacute;.';
 $lang['vote_closed']           = 'Ce doodle a &eacute;t&eacute; ferm&eacute;.';
 $lang['no_doodle']             = 'Aucun doodle &agrave; supprimer sur cette page.';
-
+$lang['doodle_not_found']      = 'Le doodle recherch&eacute; n\'a pas &eacute;t&eacute; trouv&eacute;.';
 
 ?>

@@ -16,6 +16,6 @@ $lang['vote_saved']            = 'Deine Stimme wurde gez&auml;hlt.';
 $lang['vote_deleted']          = 'Stimme gel&ouml;scht.';
 $lang['vote_closed']           = 'Dieser Stimme wurde geschlossen.';
 $lang['no_doodle']             = 'Keine doodle auf dieser Seite gefunden';
-
+$lang['doodle_not_found'] = 'Der gesuchte doodle ist nicht gefunden.';
 
 ?>
