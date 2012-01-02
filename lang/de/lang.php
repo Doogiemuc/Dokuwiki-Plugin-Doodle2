@@ -14,6 +14,8 @@ $lang['you_voted_already']     = 'Du hast bereits abgestimmt!';
 $lang['not_allowed_to_change'] = 'Du darfst diese Stimme nicht ver&auml;ndern!';
 $lang['vote_saved']            = 'Deine Stimme wurde gez&auml;hlt.';
 $lang['vote_deleted']          = 'Stimme gel&ouml;scht.';
+$lang['vote_closed']           = 'Dieser Stimme wurde geschlossen.';
+$lang['no_doodle']             = 'Keine doodle auf dieser Seite gefunden';
 
 
 ?>

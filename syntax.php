@@ -7,6 +7,7 @@
  * @author  Robert Rackl <wiki@doogie.de>
  * @author	Jonathan Tsai <tryweb@ichiayi.com>
  * @author  Esther Brunner <wikidesign@gmail.com>
+ * @author  Romain Coltel <aorimn@gmail.com>
  */
 
 if(!defined('DOKU_INC')) define('DOKU_INC',realpath(dirname(__FILE__).'/../../').'/');
@@ -124,7 +125,7 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
             } else 
             if (strcmp($name, "ADMINMAIL") == 0) {
                 // check for valid email adress
-                if (preg_match('/^[_a-z0-9-]+(\.[_a-z0-9-]+)*@[a-z0-9-]+(\.[a-z0-9-]+)*(\.[a-z]{2,5})$/', $value)) {
+                if (preg_match('/^[_a-z0-9-]+(\.[_a-z0-9+-]+)*@[a-z0-9-]+(\.[a-z0-9-]+)*(\.[a-z]{2,5})$/', $value)) {
                     $params['adminMail'] = $value;
 				}
 			} else
@@ -153,11 +154,11 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
     /**
      * parse list of choices
      * explode, trim and encode html entities,
-     * emtpy choices will be skipped.
+     * empty choices will be skipped.
      */
     function parseChoices($choiceStr) {
         $choices = array();
-        preg_match_all('/^   \* (.*?)$/m', $choiceStr, $matches, PREG_PATTERN_ORDER);
+        preg_match_all('/^ {2,}\* ?(.*?)$/m', $choiceStr, $matches, PREG_PATTERN_ORDER);
         foreach ($matches[1] as $choice) {
             $choice = hsc(trim($choice));
             if (!empty($choice)) {
@@ -190,6 +191,7 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
         //debout("render: $mode");        
         global $conf; 
         global $ACT;  // action from $_REQUEST['do']
+		global $REV;  // to not allow any action if it's an old page
 
         $this->params    = $data['params'];
         $this->choices   = $data['choices'];
@@ -205,9 +207,9 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
         }
         //FIXME: count($choices) may be different from number of choices in $doodle data!
 
-        // ----- FORM ACTIONS (only allowed when showing the page, not when editing) -----
-        $formId =  'doodle__form__'.cleanID($this->params['title']);
-        if ($ACT == 'show' && $_REQUEST['formId'] == $formId ) {
+        // ----- FORM ACTIONS (only allowed when showing the most recent page, not when editing) -----
+        $formId = 'doodle__form__'.cleanID($this->params['title']);
+        if ($ACT == 'show' && $_REQUEST['formId'] == $formId && $REV === '') {
             // ---- cast new vote
             if (!empty($_REQUEST['cast__vote'])) {
                 $this->castVote();
@@ -224,7 +226,12 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
             if (!empty($_REQUEST['delete__entry']) ) {
                 $this->deleteEntry($_REQUEST['delete__entry']);
             }
+			// ---- close the doodle
+			if (!empty($_REQUEST['close__vote'])) {
+				$this->closeVote();
+			}
         }
+
         
         /******** Format of the $doodle array ***********
          * The $doodle array maps fullnames (with html special characters masked) to an array of userData for this vote.
@@ -266,7 +273,7 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
             $this->template['count'][$col] = 0;
             foreach ($this->doodle as $fullname => $userData) {
                 if (!empty($userData['username'])) {
-                  $this->template['doodleData']["$fullname"]['username'] = '&nbsp('.$userData['username'].')';
+                  $this->template['doodleData']["$fullname"]['username'] = '&nbsp;('.$userData['username'].')';
                 }
                 if (in_array($col, $userData['choices'])) {
                     $timeLoc = strftime($conf['dformat'], $userData['time']);  // localized time of vote
@@ -285,7 +292,6 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
             if ($ACT == 'show' &&
                 $this->isAllowedToEditEntry($fullname)) 
             {
-                // the javascript source of these functions is in script.js
                 $this->template['doodleData']["$fullname"]['editLinks'] = 
 					'<input type="submit" class="doodle__edit" value="'.$fullname.'" name="edit__entry" />'."\n".
 					'<input type="submit" class="doodle__delete" value="'.$fullname.'" name="delete__entry" />'."\n";
@@ -294,6 +300,9 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
 
         // ---- calculates if user is allowed to vote
         $this->template['inputTR'] = $this->getInputTR();
+
+        // ---- create the "close doodle" form
+		$this->template['closeform'] = $this->getCloseForm();
         
         // ----- I am using PHP as a templating engine here.
         //debout("Template", $this->template);
@@ -439,25 +448,14 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
      */
     function isAllowedToEditEntry($entryFullname) {
         global $INFO;
-        
-        if ($this->params['closed']) return false;
+
+		if ($this->params['closed']) return false;
 		if (!($this->isLoggedIn() || $this->params['auth'] === self::AUTH_IP))
 		                             return false;
 
-        //check adminGroups
-        if (!empty($this->params['adminGroups'])) {
-            $adminGroups = explode('|', $this->params['adminGroups']); // array of adminGroups
-            $usersGroups = $INFO['userinfo']['grps'];  // array of groups that the user is in
-			if (count(array_intersect($adminGroups, $usersGroups)) > 0)
-				return true;
-        }
-        
-        //check adminUsers
-		if (!empty($this->params['adminUsers'])) {
-			$adminUsers = explode('|', $this->params['adminUsers']); // array of adminUsers
-            if(in_array(strtoupper($_SERVER['REMOTE_USER']), $adminUsers))
-                return true;
-        }
+		//check if the user is an admin of this doodle
+		if($this->isDoodleAdmin())
+			return true;
         
         //check own entry
 		switch($this->params['auth'])
@@ -564,6 +562,117 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
         return $TR;
     }
     
+
+	/**
+	 * Create the form to display for the admin to close the doodle
+	 * Check whether this form has to be displayed or not
+	 * @return the form for the close button
+	 */
+	function getCloseForm() {
+		//if the doodle is already close or the user is not an admin of the doodle
+		if($this->params['closed'] || !$this->isDoodleAdmin())
+			return '';
+
+		return 'Close';
+	}
+
+
+	/**
+	 * Close the vote if it's not yet and the user is an admin
+	 */
+	function closeVote() {
+		global $ID;
+
+		//if the doodle is already closed or the user is not an admin of the doodle
+		if($this->params['closed'] || !$this->isDoodleAdmin())
+			return;
+
+		//close for the current session
+		$this->params['closed'] = true;
+
+		//close for life (update the file)
+		$file_content = rawWiki($ID);
+		$ok = false;
+
+		//check for title/id in case of multiple doodle on the page
+		if(preg_match_all('/<doodle.*title="(.*)".*>/Us', $file_content, $out, PREG_PATTERN_ORDER))
+		{
+			foreach($out[1] as $title)
+			{
+				//once we found the title, add a "closeon" attribute to the vote
+				if($_REQUEST['formId'] === 'doodle__form__'.cleanID($title))
+				{
+					//escape all backslashes
+					$title = preg_replace('#\\\#', '\\\\\\', $title);
+
+					//add the closeon attribute with the date of right now
+					$new_file_content = preg_replace(
+						'/(title=\\Q"'.$title.'\\E".*)>/Us',
+						'$1 closeon="'.date(DATE_RSS).'">',
+						$file_content
+					);
+
+					$closed = $this->getLang('vote_closed');
+
+					//remove the cache for this page for the handle() function to be call
+					//sleep(1); // a workaround proposed by Michitux in case something complain about the cache deletion
+					            // but the cache deletion doesn't make us waste time...
+					$cache = new cache_parser($ID, wikiFN($ID), 'xhtml');
+					$cache->removeCache();
+
+					//and save the page containing this new attribute
+					lock($ID);
+					saveWikiText($ID, $new_file_content, $closed." (\"$title\")", true);
+					unlock($ID);
+
+					//reindex the page
+					idx_addPage($ID);
+
+					$this->template['msg'] = $closed;
+					$ok = true;
+					break;
+				}
+			}
+
+			if(!$ok)
+				msg($this->getLang('doodle_not_found'), -1);
+		}
+		else
+		{
+			msg($this->getLang('no_doodle'), -1);
+		}
+	}
+
+
+	/**
+	 * Check whether the user is a doodle admin or not
+	 * return TRUE if the user is admin of the doodle, FALSE otherwise
+	 */
+	function isDoodleAdmin()
+	{
+		global $INFO;
+
+		//the user has to be logged in to pretend to be admin
+		if(!$this->isLoggedIn())
+			return false;
+
+        //check adminGroups
+        if (!empty($this->params['adminGroups'])) {
+            $adminGroups = explode('|', $this->params['adminGroups']); // array of adminGroups
+            $usersGroups = $INFO['userinfo']['grps'];  // array of groups that the user is in
+            if (count(array_intersect($adminGroups, $usersGroups)) > 0)
+                return true;
+        }
+
+        //check adminUsers
+        if (!empty($this->params['adminUsers'])) {
+            $adminUsers = explode('|', $this->params['adminUsers']); // array of adminUsers
+            if(in_array(strtoupper($_SERVER['REMOTE_USER']), $adminUsers))
+                return true;
+        }
+
+		return false;
+	}
     
     /**
      * Loads the serialized doodle data from the file in the metadata directory.
