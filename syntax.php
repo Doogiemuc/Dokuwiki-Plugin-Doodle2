@@ -602,16 +602,13 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
 				//once we found the title, add a "closeon" attribute to the vote
 				if($this->params['title'] === hsc(trim($title)))
 				{
-					//escape all backslashes
-					$title = preg_replace('#\\\#', '\\\\\\', $title);
-
 					//check if someone didn't already close the vote
 					if(preg_match('/closeon=/', $out[0][$cpt]) > 0)
 						return;
 
 					//add the closeon attribute with the date of right now
 					$new_file_content = preg_replace(
-						'/(title=\\Q"'.$title.'\\E".*)>/Us',
+						'/(title="'.preg_quote_cb($title).'".*)>/Us',
 						'$1 closeon="'.date(DATE_RSS).'">',
 						$file_content
 					);
@@ -624,7 +621,7 @@ class syntax_plugin_doodle2 extends DokuWiki_Syntax_Plugin
 
 					//and save the page containing this new attribute
 					lock($ID);
-					saveWikiText($ID, $new_file_content, $closed." (\"$title\")", true);
+					saveWikiText($ID, $new_file_content, $closed.' ("'.hsc($title).'")', true);
 					unlock($ID);
 
 					//reindex the page
