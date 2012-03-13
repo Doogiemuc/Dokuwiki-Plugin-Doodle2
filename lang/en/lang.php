@@ -14,6 +14,8 @@ $lang['you_voted_already']     = 'You voted already!';
 $lang['not_allowed_to_change'] = 'You are not allowed to change this vote!';
 $lang['vote_saved']            = 'Vote has been saved.';
 $lang['vote_deleted']          = 'Vote has been deleted.';
-
+$lang['vote_closed']           = 'This vote has been closed.';
+$lang['no_doodle']             = 'No doodle found on this page.';
+$lang['doodle_not_found']      = 'The searched doodle has not been found.';
 
 ?>

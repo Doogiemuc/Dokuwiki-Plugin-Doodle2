@@ -65,13 +65,18 @@
       </td>
     </tr>
 <?php } ?>
-
+<?php if(!empty($template['closeform'])) { ?>
+    <tr>
+      <td colspan="<?php echo $c+1 ?>">
+        <input type="submit" name="close__vote" value="<?php echo $template['closeform'] ?>" class="button">
+      </td>
+    </tr>
+<?php } ?>
 
   </tbody>
 </table>
 
 </form>
-
 
 
 

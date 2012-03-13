@@ -14,6 +14,8 @@ $lang['you_voted_already']     = 'Vous avez d&eacute;j&agrave; vot&eacute; !';
 $lang['not_allowed_to_change'] = 'Vous n\'&ecirc;tes pas autoris&eacute; &agrave; changer ce vote !';
 $lang['vote_saved']            = 'Votre vote a &eacute;t&eacute; sauvegard&eacute;.';
 $lang['vote_deleted']          = 'Votre vote a &eacute;t&eacute; supprim&eacute;.';
-
+$lang['vote_closed']           = 'Ce doodle a &eacute;t&eacute; ferm&eacute;.';
+$lang['no_doodle']             = 'Aucun doodle &agrave; supprimer sur cette page.';
+$lang['doodle_not_found']      = 'Le doodle recherch&eacute; n\'a pas &eacute;t&eacute; trouv&eacute;.';
 
 ?>
