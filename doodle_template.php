@@ -19,6 +19,8 @@
 <input type="hidden" name="do" value="show" >
 <input type="hidden" name="id" value="<?php echo $ID ?>" >
 <input type="hidden" name="formId" value="<?php echo $template['formId'] ?>" >
+<input type="hidden" name="edit__entry"   value="">
+<input type="hidden" name="delete__entry" value="">
 
 <table class="inline">
   <tbody>
@@ -62,13 +64,6 @@
     <tr>
       <td colspan="<?php echo $c+1 ?>">
         <?php echo $template['msg'] ?>
-      </td>
-    </tr>
-<?php } ?>
-<?php if(!empty($template['closeform'])) { ?>
-    <tr>
-      <td colspan="<?php echo $c+1 ?>">
-        <input type="submit" name="close__vote" value="<?php echo $template['closeform'] ?>" class="button">
       </td>
     </tr>
 <?php } ?>
