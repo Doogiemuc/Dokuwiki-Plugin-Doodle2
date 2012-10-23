@@ -15,7 +15,7 @@
 
 # default name of project is name of current directory
 CURRENT_DIR=`pwd`
-PROJECT=`basename $CURRENT_DIR`
+PROJECT='doodle'
 DIST_DIR='dist'
 
 # FTP server
@@ -24,7 +24,7 @@ FTP_DIR='public/projects/dokuwiki'
 FTP_USER='45481-doogie'
 
 # version file with release number in it
-VERSION_FILE='VERSION'
+VERSION_FILE="$PROJECT/VERSION"
 RELEASE_NO=`egrep '[0-9]+\.[0-9]+' ./$VERSION_FILE`
 
 TARFILE="$DIST_DIR/$PROJECT-$RELEASE_NO.tar.gz"
@@ -67,7 +67,7 @@ fi
 
 
 # create .tar.gz (will ask for overwrite if file exists)
-tar --exclude '.svn' --exclude "$0" --exclude 'dist' -C ../ -czf $TARFILE $PROJECT
+tar --exclude '.svn' --exclude '.git' --exclude "$0" --exclude 'dist' -czf $TARFILE $PROJECT
 
 # upload via FTP if env=prod (will ask for password)
 if [ "$1" = "prod" ]; then
