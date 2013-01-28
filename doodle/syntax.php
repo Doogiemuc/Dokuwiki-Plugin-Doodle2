@@ -58,20 +58,6 @@ class syntax_plugin_doodle extends DokuWiki_Syntax_Plugin
     const AUTH_IP   = 1;
     const AUTH_USER = 2;
 
-    /**
-     * return info about this plugin
-     */
-    function getInfo() {
-        return array(
-            'author' => 'Robert Rackl',
-            'email'  => 'wiki@doogie.de',
-            'date'   => '2010/10/26',
-            'name'   => 'Doodle Plugin 2.0',
-            'desc'   => 'helps to schedule meetings',
-            'url'    => 'http://wiki.splitbrain.org/plugin:doodle2',
-        );
-    }
-
     function getType()  { return 'substition';}
     function getPType() { return 'block';}
     function getSort()  { return 168; }
