@@ -8,6 +8,9 @@ div.dokuwiki table.inline td.notokay {
   text-align: center;
 }
 
+#innerscrollbar {
+    overflow: auto;
+}
 .doodle__edit {
   background:url(../../../lib/images/pencil.png) top right no-repeat;
   width: 20px;
